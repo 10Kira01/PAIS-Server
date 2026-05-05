@@ -20,9 +20,9 @@ const getTransporter = async () => {
       },
       // 🚀 THE FIX: Force IPv4 and add timeouts to prevent hanging
       family: 4, 
-      connectionTimeout: 3000, // 10 seconds
-      greetingTimeout: 3000,
-      socketTimeout: 5000,
+      connectionTimeout: 15000, // 15 seconds
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
       tls: {
         rejectUnauthorized: false // Helps avoid issues with some SMTP servers
       }
