@@ -143,12 +143,12 @@ const pharmacyRegisterRules = [
 
   // ── Coordinates from Geoapify map picker ──────────────────
   body("lat")
-    .optional().withMessage("Latitude is required (pick a location on the map)")
+    .optional()
     .isFloat({ min: -90, max: 90 })
     .withMessage("Latitude must be a number between -90 and 90"),
 
   body("lng")
-    .optional().withMessage("Longitude is required (pick a location on the map)")
+    .optional()
     .isFloat({ min: -180, max: 180 })
     .withMessage("Longitude must be a number between -180 and 180"),
 
