@@ -48,7 +48,7 @@ const registerPharmacy = async (req, res) => {
     const pharmacy = await Pharmacy.create({
       pharmacyName,
       ownerName,
-      address, // Save the text for records
+      address,
       location: {
         type: "Point",
         coordinates: [finalLng, finalLat], 
@@ -61,25 +61,22 @@ const registerPharmacy = async (req, res) => {
     });
 
     // ── Fire-and-forget mock email (don't block the response) ──
-    let emailPreviewUrl = null;
-    try {
-      emailPreviewUrl = await sendPharmacyConfirmationEmail(pharmacy);
-    } catch (emailErr) {
-      console.error("Mock email error (non-fatal):", emailErr.message);
-    }
+    sendPharmacyConfirmationEmail(pharmacy)
+      .then(url => {
+        if (url) console.log(`📧 Email sent! Preview: ${url}`);
+      })
+      .catch(err => console.error("Non-fatal background email error:", err.message));
 
     return res.status(201).json({
       success: true,
-      message: "Pharmacy registration received. A confirmation email has been sent. Login credentials will be provided after your application is reviewed.",
+      message: "Pharmacy registration received. A confirmation email is being processed.",
       data: {
         applicationId: pharmacy.applicationId,
         pharmacyName: pharmacy.pharmacyName,
         location: pharmacy.location,
         licenseId: pharmacy.licenseId,
-        pharmacyEmail: pharmacy.pharmacyEmail,
         status: pharmacy.status,
         createdAt: pharmacy.createdAt,
-        ...(emailPreviewUrl && { emailPreviewUrl }),
       },
     });
   } catch (error) {
