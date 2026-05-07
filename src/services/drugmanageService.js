@@ -1,6 +1,6 @@
 const axios = require('axios');
 const Drug = require('../models/drug');
-const DrugMasterLog = require('../models/drugMasterLog');
+const DrugMasterLog = require('../models/adminLog');
 
 const PYTHON_API_URL = `${process.env.PYTHON_API_URL || "http://localhost:8000"}/drugs-management`;
 

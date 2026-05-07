@@ -2,33 +2,26 @@ const Pharmacy = require("../models/pharmacy");
 const { sendPharmacyConfirmationEmail } = require("../utils/emailMock");
 const { signAccessToken, signRefreshToken } = require("../utils/tokens");
 const { getCoordsFromAddress } = require("../utils/locationHelper");
+const Admin = require("../models/admin");
+const Notification = require("../models/notification");
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/pharmacy/register
 // ─────────────────────────────────────────────────────────────
 const registerPharmacy = async (req, res) => {
   try {
-    // 1. Destructure all fields, including the missing ownerName, lat, and lng
     const { 
-      pharmacyName, 
-      ownerName, 
-      address, 
-      licenseId, 
-      pharmacyPhone, // Fixed casing
-      password,
-      pharmacyEmail, 
-      acceptedTerms,
-      lat,
-      lng
-      
+      pharmacyName, ownerName, address, licenseId, 
+      pharmacyPhone, password, pharmacyEmail, 
+      acceptedTerms, lat, lng 
     } = req.body;
 
-
+    // ── Geocoding Fallback ───────────────────────────────
     let finalLat = lat;
     let finalLng = lng;
     if (!finalLat || !finalLng) {
       try {
-        const coords = await getCoordsFromAddress(address); // The Safety Net
+        const coords = await getCoordsFromAddress(address);
         finalLat = coords.lat;
         finalLng = coords.lng;
       } catch (geoError) {
@@ -36,69 +29,45 @@ const registerPharmacy = async (req, res) => {
       }
     }
 
-    // ── Duplicate checks ───────────────────────────────────
-  const existing = await Pharmacy.findOne({ 
+    // ── Duplicate Check ──────────────────────────────────
+    const existing = await Pharmacy.findOne({ 
       $or: [{ pharmacyEmail }, { licenseId }] 
     });
-    
     if (existing) {
       return res.status(409).json({ success: false, message: "Email or License already exists." });
     }
-    // ── Save pharmacy ──────────────────────────────────────
+
+    // ── Create Pharmacy (Status defaults to 'pending') ────
     const pharmacy = await Pharmacy.create({
-      pharmacyName,
-      ownerName,
-      address,
-      location: {
-        type: "Point",
-        coordinates: [finalLng, finalLat], 
-      },
-      licenseId,
-      pharmacyEmail,
-      pharmacyPhone,
-      password,
-      acceptedTerms,
+      pharmacyName, ownerName, address,
+      location: { type: "Point", coordinates: [finalLng, finalLat] },
+      licenseId, pharmacyEmail, pharmacyPhone, password, acceptedTerms,
     });
 
-    // ── Fire-and-forget mock email (don't block the response) ──
+    // ── NEW: Notify All Admins ───────────────────────────
+    const admins = await Admin.find({});
+    const adminNotifications = admins.map(admin => ({
+      recipientId: admin._id,
+      recipientModel: 'Admin',
+      type: 'SYSTEM_MSG',
+      content: `New pharmacy registration: ${pharmacy.pharmacyName} (App ID: ${pharmacy.applicationId})`
+    }));
+    await Notification.insertMany(adminNotifications);
+
+    // ── Fire-and-forget Email ────────────────────────────
     sendPharmacyConfirmationEmail(pharmacy)
-      .then(url => {
-        if (url) console.log(`📧 Email sent! Preview: ${url}`);
-      })
-      .catch(err => console.error("Non-fatal background email error:", err.message));
+      .catch(err => console.error("Email error:", err.message));
 
     return res.status(201).json({
       success: true,
-      message: "Pharmacy registration received. A confirmation email is being processed.",
-      data: {
-        applicationId: pharmacy.applicationId,
-        pharmacyName: pharmacy.pharmacyName,
-        location: pharmacy.location,
-        licenseId: pharmacy.licenseId,
-        status: pharmacy.status,
-        createdAt: pharmacy.createdAt,
-      },
+      message: "Pharmacy registration received. Admin notification sent.",
+      data: { applicationId: pharmacy.applicationId, status: pharmacy.status }
     });
   } catch (error) {
     console.error("registerPharmacy error:", error);
-
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyValue)[0];
-      const fieldLabel = field === "pharmacyEmail" ? "email address" : field === "licenseId" ? "license ID" : field;
-
-      return res.status(409).json({
-        success: false,
-        message: `A pharmacy with this ${fieldLabel} is already registered.`,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error. Please try again later.",
-    });
+    return res.status(500).json({ success: false, message: "Server error." });
   }
 };
-
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/pharmacy/login
 // ─────────────────────────────────────────────────────────────

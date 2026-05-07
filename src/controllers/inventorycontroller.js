@@ -3,6 +3,7 @@ const Drug = require("../models/drug");
 const Inventory = require("../models/inventory");
 const fs = require("fs");
 const csv = require("csv-parser"); // You will need to run: npm install csv-parser
+const AdminLog = require("../models/adminLog"); // For logging admin actions
 
 /**
  * 1. SEARCH MASTER CATALOG (Optimized with Text Search)
@@ -169,10 +170,32 @@ const bulkUpload = async (req, res) => {
   }
 };
 
+const getPharmacyInventoryForAdmin = async (req, res) => {
+  try {
+    const { pharmacyId } = req.params;
+    const inventory = await inventoryService.getPharmacyInventory(pharmacyId);
+
+    // ── MISSING: Log that the Admin audited this inventory ──
+    await AdminLog.create({
+      adminId: req.user.id,
+      targetType: "PHARMACY",
+      targetId: pharmacyId,
+      targetName: "Inventory View", // You can refine this name
+      action: "VIEW",
+      details: { itemCount: inventory.length }
+    });
+
+    res.status(200).json({ success: true, data: inventory });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to fetch inventory." });
+  }
+};
+
 module.exports = {
   searchMasterCatalog,
   getMyInventory,
   getInventoryItem,
   updateItem,
+  getPharmacyInventoryForAdmin,
   bulkUpload
 };
