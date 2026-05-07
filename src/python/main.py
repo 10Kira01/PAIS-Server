@@ -29,6 +29,66 @@ client = AsyncMongoClient(MONGO_URI)
 db = client.PAIS
 collection = db.drugs
 
+
+def generate_drug_embedding(drug_data: DrugSchema):
+    # Combine composition and uses for a rich semantic vector
+    text_to_encode = " ".join(drug_data.composition) + " " + drug_data.uses
+    return model.encode(text_to_encode).tolist()
+
+
+# ────────────────────────────────────────────────────────────
+# DRUG MANAGEMENT (CRUD)
+# ────────────────────────────────────────────────────────────
+
+def generate_embedding(drug: DrugSchema):
+    text = f"{drug.name} {' '.join(drug.composition)} {drug.uses}"
+    return model.encode(text).tolist()
+
+@app.post("/drugs-management/")
+async def add_drug(drug: DrugSchema):
+    # 1. Duplicate Check
+    existing = await collection.find_one({"name": drug.name})
+    if existing:
+        raise HTTPException(status_code=400, detail="Drug already exists")
+
+    # 2. Process Data
+    drug_dict = drug.model_dump()
+    drug_dict["embedding"] = generate_embedding(drug)
+    
+    # 3. Save to DB
+    result = await collection.insert_one(drug_dict)
+    drug_dict["_id"] = str(result.inserted_id)
+    return drug_dict
+
+@app.put("/drugs-management/{drug_id}")
+async def update_drug(drug_id: str, drug: DrugSchema):
+    try:
+        oid = ObjectId(drug_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    drug_dict = drug.model_dump()
+    drug_dict["embedding"] = generate_embedding(drug)
+
+    # Replace the document with updated data
+    result = await collection.replace_one({"_id": oid}, drug_dict)
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Drug not found")
+    
+    drug_dict["_id"] = drug_id
+    return drug_dict
+
+@app.delete("/drugs-management/{drug_id}")
+async def delete_drug(drug_id: str):
+    try:
+        result = await collection.delete_one({"_id": ObjectId(drug_id)})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Drug not found")
+        return {"success": True}
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID")
+
+
 # ────────────────────────────────────────────────────────────
 # DRUG ALTERNATIVES
 # ────────────────────────────────────────────────────────────

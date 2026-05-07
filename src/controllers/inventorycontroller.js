@@ -24,12 +24,11 @@ const searchMasterCatalog = async (req, res) => {
     const drugs = await Drug.find({
       $or: [
         { name: { $regex: cleanedQuery, $options: "i" } },
-        { name_en: { $regex: cleanedQuery, $options: "i" } }
       ]
     })
       .limit(20) // Cap the results to keep the UI snappy
       .lean()    // Strip Mongoose overhead for faster JSON responses
-      .select("name name_en category dosageForm composition imageUrl"); // Pick only what the frontend needs
+      .select("name  category dosageForm composition imageUrl"); // Pick only what the frontend needs
 
     res.status(200).json({ success: true, count: drugs.length, data: drugs });
   } catch (error) {

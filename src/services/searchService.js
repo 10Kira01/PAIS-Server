@@ -36,10 +36,12 @@ const searchDruglist = async (query, clientId, lat, lng) => {
   // 1. Fetch drugs from the database[cite: 5]
   const results = await Drug.find({
     $or: [
-      { name: { $regex: cleanedQuery, $options: "i" } },
-      { name_en: { $regex: cleanedQuery, $options: "i" } }
+      { name: { $regex: cleanedQuery, $options: "i" } }
     ],
-  }).limit(20).lean(); 
+  }).select("-embedding") // Exclude heavy AI data
+  .sort({ name: 1 })    // Alphabetical order
+  .limit(20)           // Performance cap
+  .lean();             // Return plain JSON; 
 
   // 2. Log the search with location data if available
   if (lat && lng) {
