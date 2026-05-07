@@ -1,11 +1,11 @@
 require("dotenv").config();
-const express  = require("express");
+const express = require("express");
 const mongoose = require("mongoose");
-const cors     = require("cors");
-const helmet   = require("helmet");
-const morgan   = require("morgan");
-const multer   = require("multer");
-const upload   = multer({ dest: "uploads/" });
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
 
 // ────────────────────────────────────────────────────────────
 // 1. Controllers & Services
@@ -31,14 +31,14 @@ const {
 } = require("./controllers/drugManageController");
 
 const {
-  searchMasterCatalog, getMyInventory, getInventoryItem, updateItem, 
+  searchMasterCatalog, getMyInventory, getInventoryItem, updateItem,
   getPharmacyInventoryForAdmin, bulkUpload
 } = require("./controllers/inventorycontroller");
 
 const { getAlternatives } = require("./controllers/alternativecontroller");
 
-const { 
-  getPharmacies, updateStatus, notifyPharmacyProblem 
+const {
+  getPharmacies, updateStatus, notifyPharmacyProblem
 } = require("./controllers/pharmacyaprovalcontroller");
 
 const { getMyNotifications, markAsRead } = require("./controllers/notificationcontroller");
@@ -48,9 +48,9 @@ const { getMyNotifications, markAsRead } = require("./controllers/notificationco
 // ────────────────────────────────────────────────────────────
 const { optionalProtect, protect, restrictTo } = require("./middleware/auth");
 const {
-  validate, clientRegisterRules, clientLoginRules, 
-  pharmacyRegisterRules, pharmacyLoginRules, 
-  loginAdmin: adminLoginRules, refreshRules, 
+  validate, clientRegisterRules, clientLoginRules,
+  pharmacyRegisterRules, pharmacyLoginRules,
+  loginAdmin: adminLoginRules, refreshRules,
 } = require("./utils/validators");
 
 const app = express();
@@ -83,18 +83,18 @@ if (process.env.NODE_ENV !== "production") {
 
 // --- Auth Routes ---
 app.post("/api/client/register", clientRegisterRules, validate, registerClient);
-app.post("/api/client/login",    clientLoginRules,    validate, loginClient);
-app.get( "/api/client/me",       protect, getClientMe);
+app.post("/api/client/login", clientLoginRules, validate, loginClient);
+app.get("/api/client/me", protect, getClientMe);
 
 app.post("/api/pharmacy/register", pharmacyRegisterRules, validate, registerPharmacy);
-app.post("/api/pharmacy/login",    pharmacyLoginRules,    validate, loginPharmacy);
-app.get( "/api/pharmacy/me",       protect, restrictTo("pharmacy"), getPharmacyMe);
+app.post("/api/pharmacy/login", pharmacyLoginRules, validate, loginPharmacy);
+app.get("/api/pharmacy/me", protect, restrictTo("pharmacy"), getPharmacyMe);
 
-app.post("/api/admin/login",   adminLoginRules, validate, loginAdmin); 
-app.get( "/api/admin/me",      protect, restrictTo("admin"), getAdminMe);
+app.post("/api/admin/login", adminLoginRules, validate, loginAdmin);
+app.get("/api/admin/me", protect, restrictTo("admin"), getAdminMe);
 
-app.post("/api/auth/logout",   refreshRules, validate, logoutClient);
-app.post("/api/auth/refresh",  refreshRules, validate, refreshAccessToken);
+app.post("/api/auth/logout", refreshRules, validate, logoutClient);
+app.post("/api/auth/refresh", refreshRules, validate, refreshAccessToken);
 
 //-────────────────────────────────────────────────────────────
 // --- Search & Discovery ---
@@ -103,38 +103,38 @@ app.get("/api/search", optionalProtect, searchDrugs);
 app.get("/api/search/nearby", optionalProtect, getNearbypharmacies);
 app.get("/api/search/:drugId/nearby", optionalProtect, getNearbyPharmaciesWithDrug);
 app.get("/api/search/:drugId", optionalProtect, getDrugDetails);
-app.get("/api/search/:drugId/alternatives", protect, getAlternatives);
+app.get("/api/search/:drugId/alternatives", optionalProtect, getAlternatives);
 
 //-────────────────────────────────────────────────────────────
 // --- Drug Management (Admin Only) ---
 //-────────────────────────────────────────────────────────────
-app.get(   "/api/drugs",      protect, restrictTo("admin"), getDrugs);
-app.post(  "/api/drugs",      protect, restrictTo("admin"), upsertDrug);
-app.get(   "/api/drugs/:id",  protect, restrictTo("admin"), getSingleDrug);
-app.put(   "/api/drugs/:id",  protect, restrictTo("admin"), upsertDrug);
-app.delete("/api/drugs/:id",  protect, restrictTo("admin"), deleteDrug);
+app.get("/api/drugs", protect, restrictTo("admin"), getDrugs);
+app.post("/api/drugs", protect, restrictTo("admin"), upsertDrug);
+app.get("/api/drugs/:id", protect, restrictTo("admin"), getSingleDrug);
+app.put("/api/drugs/:id", protect, restrictTo("admin"), upsertDrug);
+app.delete("/api/drugs/:id", protect, restrictTo("admin"), deleteDrug);
 
 //-────────────────────────────────────────────────────────────
 // --- Pharmacy Approval & Admin Actions ---
 //-────────────────────────────────────────────────────────────
-app.get(  "/api/admin/pharmacies", protect, restrictTo("admin"), getPharmacies);
-app.get(  "/api/admin/pharmacies/:pharmacyId/inventory", protect, restrictTo("admin"), getPharmacyInventoryForAdmin);
+app.get("/api/admin/pharmacies", protect, restrictTo("admin"), getPharmacies);
+app.get("/api/admin/pharmacies/:pharmacyId/inventory", protect, restrictTo("admin"), getPharmacyInventoryForAdmin);
 app.patch("/api/admin/pharmacies/:id/status", protect, restrictTo("admin"), updateStatus);
-app.post( "/api/admin/pharmacies/:id/notify-problem", protect, restrictTo("admin"), notifyPharmacyProblem);
+app.post("/api/admin/pharmacies/:id/notify-problem", protect, restrictTo("admin"), notifyPharmacyProblem);
 
 //-────────────────────────────────────────────────────────────
 // --- Inventory Management (Pharmacy Only) ---
 //-────────────────────────────────────────────────────────────
-app.get(  "/api/inventory/search-catalog", protect, restrictTo("pharmacy"), searchMasterCatalog);
-app.get(  "/api/inventory",                protect, restrictTo("pharmacy"), getMyInventory);
-app.get(  "/api/inventory/item/:drugId",   protect, restrictTo("pharmacy"), getInventoryItem);
-app.patch("/api/inventory/update",         protect, restrictTo("pharmacy"), updateItem);
-app.post( "/api/inventory/bulk-upload",    protect, restrictTo("pharmacy"), upload.single("file"), bulkUpload);
+app.get("/api/inventory/search-catalog", protect, restrictTo("pharmacy"), searchMasterCatalog);
+app.get("/api/inventory", protect, restrictTo("pharmacy"), getMyInventory);
+app.get("/api/inventory/item/:drugId", protect, restrictTo("pharmacy"), getInventoryItem);
+app.patch("/api/inventory/update", protect, restrictTo("pharmacy"), updateItem);
+app.post("/api/inventory/bulk-upload", protect, restrictTo("pharmacy"), upload.single("file"), bulkUpload);
 
 //-────────────────────────────────────────────────────────────
 // --- Notifications ---
 //-────────────────────────────────────────────────────────────
-app.get(  "/api/notifications", protect, getMyNotifications);
+app.get("/api/notifications", protect, getMyNotifications);
 app.patch("/api/notifications/:id/read", protect, markAsRead);
 
 // ── 5. Error Handling ───────────────────────────────────────────
