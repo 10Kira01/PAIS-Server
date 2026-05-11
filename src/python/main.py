@@ -1,77 +1,69 @@
 import os
-from fastapi import FastAPI, HTTPException
-from sentence_transformers import SentenceTransformer
-from pymongo import AsyncMongoClient
-from bson import ObjectId
-from bson.errors import InvalidId 
-from typing import Optional
-from models import DrugSchema
-from dotenv import load_dotenv
-from sentence_transformers import util
-import torch
-from pathlib import Path
 import pandas as pd
 import xgboost as xgb
 import joblib
+import torch
+from fastapi import FastAPI, HTTPException
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+from bson.errors import InvalidId 
+from sentence_transformers import SentenceTransformer, util
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+from models import DrugSchema
+from dotenv import load_dotenv
 
-# 1. Environment Loading
+# 1. Environment & Global Config
 load_dotenv() 
-if not os.getenv("MONGO_URI"):
-    load_dotenv(dotenv_path=Path(".") / ".env")
-if not os.getenv("MONGO_URI"):
-    load_dotenv(dotenv_path=Path("..") / ".env")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MODEL_PATH = 'pais_demand_forecaster.pkl'
 
 app = FastAPI()
 
-# 2. AI Model Loading
+# --- GLOBAL MODEL CACHE ---
+# This ensures the model stays in RAM and doesn't reload on every request
+xgb_model = None 
+if os.path.exists(MODEL_PATH):
+    try:
+        xgb_model = joblib.load(MODEL_PATH)
+        print("✅ AI Model loaded into memory successfully.")
+    except Exception as e:
+        print(f"❌ Load Error: {e}")
+
+# 2. AI Model Loading (Semantic Search)
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # 3. Database Connection
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-client = AsyncMongoClient(MONGO_URI)
+client = AsyncIOMotorClient(MONGO_URI)
 db = client.PAIS
 collection = db.drugs
 
 # ────────────────────────────────────────────────────────────
-# UTILS
+# UTILS & DRUG MANAGEMENT
 # ────────────────────────────────────────────────────────────
 
 def generate_embedding(drug: DrugSchema):
     text = f"{drug.name} {' '.join(drug.composition)} {drug.uses}"
     return model.encode(text).tolist()
 
-# ────────────────────────────────────────────────────────────
-# DRUG MANAGEMENT (CRUD)
-# ────────────────────────────────────────────────────────────
-
 @app.post("/drugs-management/")
 async def add_drug(drug: DrugSchema):
     existing = await collection.find_one({"name": drug.name})
-    if existing:
-        raise HTTPException(status_code=400, detail="Drug already exists")
-
+    if existing: raise HTTPException(status_code=400, detail="Drug already exists")
     drug_dict = drug.model_dump()
     drug_dict["embedding"] = generate_embedding(drug)
-    
     result = await collection.insert_one(drug_dict)
     drug_dict["_id"] = str(result.inserted_id)
     return drug_dict
 
 @app.put("/drugs-management/{drug_id}")
 async def update_drug(drug_id: str, drug: DrugSchema):
-    try:
-        oid = ObjectId(drug_id)
-    except:
-        raise HTTPException(status_code=400, detail="Invalid ID format")
-
+    try: oid = ObjectId(drug_id)
+    except: raise HTTPException(status_code=400, detail="Invalid ID")
     drug_dict = drug.model_dump()
     drug_dict["embedding"] = generate_embedding(drug)
-
     result = await collection.replace_one({"_id": oid}, drug_dict)
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Drug not found")
-    
+    if result.matched_count == 0: raise HTTPException(status_code=404, detail="Not found")
     drug_dict["_id"] = drug_id
     return drug_dict
 
@@ -79,161 +71,209 @@ async def update_drug(drug_id: str, drug: DrugSchema):
 async def delete_drug(drug_id: str):
     try:
         result = await collection.delete_one({"_id": ObjectId(drug_id)})
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Drug not found")
+        if result.deleted_count == 0: raise HTTPException(status_code=404, detail="Not found")
         return {"success": True}
-    except:
-        raise HTTPException(status_code=400, detail="Invalid ID")
+    except: raise HTTPException(status_code=400, detail="Invalid ID")
 
 # ────────────────────────────────────────────────────────────
-# DRUG ALTERNATIVES (Semantic Search)
-# ────────────────────────────────────────────────────────────
-
-@app.get("/drugs-alternatives/{drug_id}/")
-async def get_alternatives(drug_id: str, top_k: int = 5):
-    try:
-        oid = ObjectId(drug_id)
-    except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid drug ID format")
-
-    target_drug = await collection.find_one({"_id": oid})
-    if not target_drug or "embedding" not in target_drug:
-        raise HTTPException(status_code=404, detail="Drug or vector not found")
-
-    cursor = collection.find({
-        "embedding": {"$exists": True, "$ne": []},
-        "_id": {"$ne": oid}
-    })
-    all_drugs = await cursor.to_list(length=1000)
-
-    if not all_drugs:
-        return []
-
-    target_vector = torch.tensor(target_drug["embedding"])
-    other_vectors = torch.tensor([d["embedding"] for d in all_drugs])
-    cos_scores = util.cos_sim(target_vector, other_vectors)[0]
-
-    scored_drugs = []
-    for i, score in enumerate(cos_scores):
-        score_val = float(score)
-        if score_val >= 0.70:
-            drug_data = all_drugs[i]
-            drug_data["score"] = round(score_val * 100, 2)
-            scored_drugs.append(drug_data)
-
-    scored_drugs.sort(key=lambda x: x["score"], reverse=True)
-    final_results = scored_drugs[:top_k]
-    for doc in final_results:
-        doc["_id"] = str(doc["_id"])
-        if "embedding" in doc:
-            del doc["embedding"]
-
-    return final_results
-
-# ────────────────────────────────────────────────────────────
-# DEMAND PREDICTION MODEL (XGBoost)
+# AI TRAINING (XGBOOST)
 # ────────────────────────────────────────────────────────────
 
 @app.post("/model/train")
 async def train_model():
-    all_dbs = await client.list_database_names()
-    correct_db_name = None
-    for name in all_dbs:
-        cols = await client[name].list_collection_names()
-        if any("searchlog" in c.lower() for c in cols):
-            correct_db_name = name
-            break
-
-    if not correct_db_name:
-        raise HTTPException(status_code=404, detail="No searchlogs found in Atlas.")
-
-    logs = await client[correct_db_name].searchlogs.find().to_list(length=80000)
+    global xgb_model
+    logs = await db.searchlogs.find().to_list(length=80000)
+    if not logs: raise HTTPException(status_code=404, detail="No logs found")
+    
     df = pd.DataFrame(logs)
-    # XGBoost logic usually goes here to save 'pais_demand_forecaster.pkl'
-    return {"status": "Trained", "db_used": correct_db_name, "count": len(df)}
+    if 'createdAt' not in df.columns: df.rename(columns={'createdat': 'createdAt'}, inplace=True)
+    df['createdAt'] = pd.to_datetime(df['createdAt'])
+    df['month'] = df['createdAt'].dt.month
+    df['week'] = df['createdAt'].dt.isocalendar().week
+    
+    train_df = df.groupby(['query', 'month', 'week']).agg(
+        search_count=('query', lambda x: x.str.contains('SEARCH', case=False).sum() or 1),
+        view_count=('query', lambda x: x.str.contains('VIEW_DRUG', case=False).sum()),
+        check_count=('query', lambda x: x.str.contains('CHECK_STOCK', case=False).sum())
+    ).reset_index()
 
-#-────────────────────────────────────────────────────────────
-# DEMAND PREDICTION (Inference)
-#-────────────────────────────────────────────────────────────
+    train_df['weighted_demand'] = (train_df['search_count'] * 1) + (train_df['view_count'] * 2) + (train_df['check_count'] * 3)
+    
+    X = train_df[['month', 'week', 'view_count', 'check_count']]
+    y = train_df['weighted_demand']
+    
+    new_model = xgb.XGBRegressor(n_estimators=100, learning_rate=0.1)
+    new_model.fit(X, y)
+    
+    joblib.dump(new_model, MODEL_PATH)
+    xgb_model = new_model # Update the live memory cache immediately
+    return {"status": "Success", "samples": len(train_df)}
+
+# ────────────────────────────────────────────────────────────
+# OPTIMIZED ANALYTICS & PREDICTIONS
+# ────────────────────────────────────────────────────────────
+# Initialize cache at the global level
+cache = {}
+
 @app.get("/model/predict/{pharmacy_id}")
 async def predict_demand(pharmacy_id: str):
-    if not os.path.exists('pais_demand_forecaster.pkl'):
-        raise HTTPException(status_code=400, detail="Model file not found. Train first.")
+    # 1. Model Check
+    if xgb_model is None:
+        raise HTTPException(status_code=400, detail="Model not initialized. Train first.")
         
-    model_xgb = joblib.load('pais_demand_forecaster.pkl')
+    # 2. Cache Check (The Speed Hack)
+    # If this pharmacy requested data in the last 5 minutes, return it instantly
+    if pharmacy_id in cache:
+        last_time, data = cache[pharmacy_id]
+        if (datetime.now(timezone.utc) - last_time).seconds < 300:
+            return data
+
     now = datetime.now(timezone.utc)
-    
+    analysis_window = now - timedelta(days=60) 
+
+    # 3. Database Retrieval
+    pharmacy = await db.pharmacies.find_one({"_id": ObjectId(pharmacy_id)})
     inventory = await db.inventories.find({"pharmacyId": ObjectId(pharmacy_id)}).to_list(length=2000)
-    predictions = []
     
-    for item in inventory:
-        # BUG FIX: Model expects 4 features. Adding Year to reach 4.
-        # Order: [Year, Month, Week, Weekday]
-        features = [[
-            now.year, 
-            now.month, 
-            now.isocalendar()[1] + 1, 
-            now.weekday()
-        ]] 
-        
-        pred_demand = model_xgb.predict(features)[0]
-        
-        suggested_stock = round(pred_demand * 1.2)
-        raise_amount = max(0, suggested_stock - item["stockQuantity"])
-        status = "CRITICAL" if pred_demand > item["stockQuantity"] else "SAFE"
-        
-        predictions.append({
-            "drugId": str(item["drugId"]),
-            "expected_demand": round(float(pred_demand), 2),
-            "suggested_raise": raise_amount,
-            "status": status
-        })
-        
-    return sorted(predictions, key=lambda x: x['expected_demand'], reverse=True)
+    if not inventory or not pharmacy: 
+        return []
 
-# ────────────────────────────────────────────────────────────
-# DEMAND HEATMAP (Geospatial)
-# ────────────────────────────────────────────────────────────
+    drug_ids = [item["drugId"] for item in inventory]
 
-@app.get("/analytics/heatmap/{pharmacy_id}")
-async def get_demand_heatmap(pharmacy_id: str):
-    # 1. Validate ID format
-    try:
-        oid = ObjectId(pharmacy_id)
-    except (InvalidId, TypeError):
-        raise HTTPException(status_code=400, detail=f"Invalid ID format: {pharmacy_id}")
+    # 4. Batch Fetch Names (Join Optimization)
+    drugs_data = await db.drugs.find({"_id": {"$in": drug_ids}}, {"name": 1}).to_list(None)
+    name_map = {str(d["_id"]): d["name"] for d in drugs_data}
 
-    # 2. Fetch pharmacy (Only once)
-    pharmacy = await db.pharmacies.find_one({"_id": oid})
-    if not pharmacy:
-         raise HTTPException(status_code=404, detail="Pharmacy not found")
-
-    # 3. Time calculation
-    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    
-    # 4. Aggregation Pipeline
+    # 5. Hyper-Local Aggregation (Geofenced Intent)
     pipeline = [
         {
             "$geoNear": {
                 "near": pharmacy["location"],
                 "distanceField": "dist",
-                "maxDistance": 5000,
-                "query": {"createdAt": {"$gte": seven_days_ago}},
+                "maxDistance": 5000, 
+                "query": { "results": {"$in": drug_ids}, "createdAt": {"$gte": analysis_window} },
                 "spherical": True
             }
         },
-        {
-            "$group": {
-                "_id": {
-                    "lat": {"$arrayElemAt": ["$location.coordinates", 1]},
-                    "lng": {"$arrayElemAt": ["$location.coordinates", 0]}
-                },
-                "weight": {"$sum": 1}
-            }
-        }
+        # Optimization: Discard unused fields immediately to save RAM
+        {"$project": {"results": 1, "query": 1}}, 
+        {"$unwind": "$results"},
+        {"$group": {
+            "_id": "$results",
+            "views": {"$sum": {"$cond": [{"$regexMatch": {"input": "$query", "regex": "VIEW", "options": "i"}}, 1, 0]}},
+            "checks": {"$sum": {"$cond": [{"$regexMatch": {"input": "$query", "regex": "CHECK", "options": "i"}}, 1, 0]}}
+        }}
     ]
     
-    # 5. Resolve cursor and return
-    cursor = await db.searchlogs.aggregate(pipeline) 
-    heatmap_points = await cursor.to_list(length=1000)
-    return heatmap_points
+    cursor = db.searchlogs.aggregate(pipeline)
+    stats_list = await cursor.to_list(length=None)
+    stats_map = {str(s["_id"]): s for s in stats_list}
+    
+    # 6. Vectorized Prediction (Bulk AI Processing)
+    all_features = [
+        [now.month, now.isocalendar()[1] + 1, 
+         stats_map.get(str(item["drugId"]), {}).get("views", 1), 
+         stats_map.get(str(item["drugId"]), {}).get("checks", 0)] 
+        for item in inventory
+    ]
+
+    feature_df = pd.DataFrame(all_features, columns=['month', 'week', 'view_count', 'check_count'])
+    all_preds = xgb_model.predict(feature_df)
+
+    # 7. Urgency Logic
+    predictions = []
+    for i, item in enumerate(inventory):
+        d_id = str(item["drugId"])
+        pred_val = float(all_preds[i])
+        current_stock = item["stockQuantity"]
+        
+        # Proactive Status Check (80% threshold)
+        if pred_val >= current_stock:
+            status = "CRITICAL"
+        elif pred_val >= (current_stock * 0.8):
+            status = "WARNING"
+        else:
+            status = "SAFE"
+
+        predictions.append({
+            "drugId": d_id,
+            "name": name_map.get(d_id, "Unknown"),
+            "expected_demand": round(pred_val, 2),
+            "suggested_raise": max(0, round(pred_val * 1.2) - current_stock),
+            "status": status
+        })
+    
+    # 8. Advanced Sorting & Cache Update
+    def urgency_rank(x):
+        status_weight = {"CRITICAL": 2, "WARNING": 1, "SAFE": 0}
+        return (status_weight.get(x['status'], 0), x['suggested_raise'], x['expected_demand'])
+    
+    returned_data = sorted(predictions, key=urgency_rank, reverse=True)
+    
+    # Save to cache with UTC timestamp
+    cache[pharmacy_id] = (datetime.now(timezone.utc), returned_data)   
+    
+    return returned_data
+
+# ────────────────────────────────────────────────────────────
+# OPPORTUNITIES & HEATMAP
+# ────────────────────────────────────────────────────────────
+
+@app.get("/model/opportunities/{pharmacy_id}")
+async def get_inventory_opportunities(pharmacy_id: str):
+    pharmacy = await db.pharmacies.find_one({"_id": ObjectId(pharmacy_id)})
+    if not pharmacy: raise HTTPException(status_code=404, detail="Not found")
+    
+    pipeline = [
+        {"$geoNear": {"near": pharmacy["location"], "distanceField": "dist", "maxDistance": 5000, "spherical": True}},
+        {"$unwind": "$results"},
+        {"$group": {"_id": "$results", "searchCount": {"$sum": 1}}},
+        {"$sort": {"searchCount": -1}},
+        {"$limit": 15}
+    ]
+
+    cursor = db.searchlogs.aggregate(pipeline) 
+    local_trends = await cursor.to_list(length=15)
+    
+    inventory = await db.inventories.find({"pharmacyId": ObjectId(pharmacy_id)}).to_list(None)
+    in_stock_ids = {str(i["drugId"]) for i in inventory}
+    
+    needed_ids = [trend["_id"] for trend in local_trends if str(trend["_id"]) not in in_stock_ids]
+    drugs_data = await db.drugs.find({"_id": {"$in": needed_ids}}, {"name": 1}).to_list(None)
+    name_map = {str(d["_id"]): d["name"] for d in drugs_data}
+    
+    opportunities = []
+    for trend in local_trends:
+        t_id = str(trend["_id"])
+        if t_id not in in_stock_ids:
+            opportunities.append({
+                "drugId": t_id,
+                "name": name_map.get(t_id, "Unknown"),
+                "localDemand": trend["searchCount"],
+                "status": "OPPORTUNITY"
+            })
+    return opportunities
+
+@app.get("/analytics/heatmap/{pharmacy_id}")
+async def get_demand_heatmap(pharmacy_id: str):
+    pharmacy = await db.pharmacies.find_one({"_id": ObjectId(pharmacy_id)})
+    if not pharmacy: raise HTTPException(status_code=404, detail="Not found")
+    # Time window for heatmap points
+    window = datetime.now(timezone.utc) - timedelta(days=60)
+    
+    pipeline = [
+        {
+            "$geoNear": {
+                "near": pharmacy["location"],
+                "distanceField": "dist", "maxDistance": 5000,
+                "query": {"createdAt": {"$gte": window}},
+                "spherical": True
+            }
+        },
+        {"$group": {
+            "_id": { "lat": {"$arrayElemAt": ["$location.coordinates", 1]}, "lng": {"$arrayElemAt": ["$location.coordinates", 0]} },
+            "weight": {"$sum": 1}
+        }}
+    ]
+    cursor = db.searchlogs.aggregate(pipeline) 
+    return await cursor.to_list(length=1000)
