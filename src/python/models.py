@@ -12,7 +12,7 @@ class DrugSchema(BaseModel):
     requiresPrescription: bool = False
     manufacturer: Optional[str] = None
     imageUrl: Optional[str] = None
-    isbn: Optional[str] = None
+    barcode: Optional[str] = None
     price: float = Field(..., gt=0)
     embedding: List[float] = []
 

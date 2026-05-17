@@ -78,7 +78,8 @@ async def delete_drug(drug_id: str):
 # ────────────────────────────────────────────────────────────
 # --- GLOBAL VECTOR CACHE ---
 # This is a RAM-resident dictionary of all drug embeddings for lightning-fast similarity search.
-DRUG_VECTOR_CACHE = None 
+DRUG_VECTOR_CACHE = None
+EXPECTED_EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 output dimension
 
 async def refresh_vector_cache():
     """Call this to load all embeddings into memory."""
@@ -86,9 +87,20 @@ async def refresh_vector_cache():
     print("🚀 Loading drug vectors into RAM...")
     cursor = collection.find({"embedding": {"$exists": True, "$ne": []}}, {"embedding": 1})
     data = await cursor.to_list(length=None)
-    # Store as a dictionary for fast lookup: { "id": tensor_vector }
-    DRUG_VECTOR_CACHE = {str(d["_id"]): torch.tensor(d["embedding"]) for d in data}
-    print(f"✅ Cached {len(DRUG_VECTOR_CACHE)} vectors.")
+
+    skipped = 0
+    DRUG_VECTOR_CACHE = {}
+    for d in data:
+        emb = d.get("embedding", [])
+        # Guard: skip any doc whose embedding is not the expected dimension.
+        # Catches drugs inserted before the AI pipeline (e.g. direct mongoimport)
+        # that still have empty or malformed vectors.
+        if len(emb) != EXPECTED_EMBEDDING_DIM:
+            skipped += 1
+            continue
+        DRUG_VECTOR_CACHE[str(d["_id"])] = torch.tensor(emb)
+
+    print(f"✅ Cached {len(DRUG_VECTOR_CACHE)} vectors. Skipped {skipped} with invalid embeddings.")
 
 @app.on_event("startup")
 async def startup_event():
@@ -115,13 +127,17 @@ async def get_alternatives(drug_id: str, top_k: int = 5):
     if target_vector is None:
         target_drug = await collection.find_one({"_id": oid}, {"embedding": 1})
         if not target_drug: raise HTTPException(status_code=404, detail="Not found")
-        target_vector = torch.tensor(target_drug["embedding"])
+        emb = target_drug.get("embedding", [])
+        if len(emb) != EXPECTED_EMBEDDING_DIM:
+            raise HTTPException(status_code=422, detail="This drug has no valid embedding. Re-add it via the API to generate one.")
+        target_vector = torch.tensor(emb)
         DRUG_VECTOR_CACHE[drug_id] = target_vector
 
     # 2. Perform math against the ENTIRE CACHE at once (CPU speed)
-    # We create a single matrix from the cache
-    ids = list(DRUG_VECTOR_CACHE.keys())
-    vectors = torch.stack(list(DRUG_VECTOR_CACHE.values()))
+    # Only include vectors with the correct dimension (safety net for runtime additions)
+    valid_entries = {k: v for k, v in DRUG_VECTOR_CACHE.items() if v.shape[0] == EXPECTED_EMBEDDING_DIM}
+    ids = list(valid_entries.keys())
+    vectors = torch.stack(list(valid_entries.values()))
     
     cos_scores = util.cos_sim(target_vector, vectors)[0]
 

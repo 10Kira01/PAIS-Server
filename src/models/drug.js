@@ -75,7 +75,7 @@ const drugSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    isbn: {
+    barcode: {
       type: String,
       unique: true,
       sparse: true, // Allows multiple null values
