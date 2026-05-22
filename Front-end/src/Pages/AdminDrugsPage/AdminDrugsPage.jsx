@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Plus, Edit2, Trash2, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Loader from '../../Components/Loader/Loader';
+import SearchBar from '../../Components/SearchBar/SearchBar';
 
 const token = () => localStorage.getItem('accessToken');
 const BASE = 'https://pais-production.up.railway.app/api/drugs';
@@ -22,7 +23,14 @@ export default function AdminDrugsPage() {
   const [form, setForm] = useState(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
+
+  const filteredDrugs = drugs.filter(d =>
+  d.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  d.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  d.composition?.join(', ').toLowerCase().includes(searchTerm.toLowerCase())
+);
   useEffect(() => { fetchDrugs(); }, []);
 
   async function fetchDrugs() {
@@ -111,7 +119,7 @@ export default function AdminDrugsPage() {
           <Plus size={16}/> Add Drug
         </button>
       </div>
-
+       <SearchBar onSearch={setSearchTerm} />
       {isLoading ? (
         <div className="text-center py-12 text-gray-400"><Loader/></div>
       ) : (
@@ -127,7 +135,7 @@ export default function AdminDrugsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {drugs.map((drug) => (
+              {filteredDrugs.map((drug) => (
                 <tr key={drug._id} className="hover:bg-gray-50 transition">
                   <td className="px-6 py-4 font-medium text-gray-900">{drug.name}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{drug.category}</td>

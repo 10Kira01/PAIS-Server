@@ -55,7 +55,7 @@ export default function Navbar() {
             </>
           ) : (
             <div className="flex items-center gap-3">
-    <NotificationBell /> {/* ✅ */}
+    <NotificationBell /> 
     <button
       onClick={handleLogout}
       className="px-6 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition-all active:scale-95"

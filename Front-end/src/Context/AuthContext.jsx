@@ -6,7 +6,7 @@ const AuthContext = createContext();
 
 const API_BASE = 'https://pais-production.up.railway.app';
 
-/** Backend / older sessions may use different role strings */
+
 export function normalizeRole(r) {
   if (r == null || r === '') return null;
   const x = String(r).trim().toLowerCase();
@@ -14,7 +14,7 @@ export function normalizeRole(r) {
   return x;
 }
 
-/** Default app entry for each role (session already in localStorage). */
+
 export function getDashboardPathForRole(role) {
   const r = normalizeRole(role);
   if (r === 'admin') return '/admin';
@@ -23,9 +23,7 @@ export function getDashboardPathForRole(role) {
   return null;
 }
 
-/**
- * Login payloads differ: some APIs return `client`, others `user` / nested `data`.
- */
+
 function pickUserFromAuthPayload(authData, userRole) {
   if (!authData || typeof authData !== 'object') return null;
   const role = normalizeRole(userRole);
@@ -92,7 +90,7 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // Token + role but missing / invalid `user` (e.g. old bug or API shape change)
+    
       if (savedRole === 'client') {
         try {
           const res = await axios.get(`${API_BASE}/api/client/me`, {
@@ -142,37 +140,7 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
-  
-  // const logout = async () => {
-  //   const accessToken = localStorage.getItem('accessToken');
-  //   const refreshToken = localStorage.getItem('refreshToken');
-
-  //   try {
-  //     if (accessToken && refreshToken) {
-  //       await axios.post(
-  //         'https://pais-production.up.railway.app/api/auth/logout',
-  //         { refreshToken },
-  //         {
-  //           headers: {
-  //             Authorization: `Bearer ${accessToken}`,
-  //             'Content-Type': 'application/json',
-  //           },
-  //         }
-  //       );
-  //     }
-  //   } catch (error) {
-  //     console.error('Logout API failed:', error);
-  //   }
-
-  //   localStorage.removeItem('accessToken');
-  //   localStorage.removeItem('refreshToken');
-  //   localStorage.removeItem('role');
-  //   localStorage.removeItem('user');
-
-  //   setRole(null);
-  //   setUser(null);
-  // };
-
+ 
 
   const logout = async () => {
     const accessToken = localStorage.getItem('accessToken');

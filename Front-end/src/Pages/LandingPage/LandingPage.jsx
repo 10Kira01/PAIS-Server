@@ -1,28 +1,19 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import HowItWork from '../../Components/HowItWork/HowItWork';
 import BenifitsOfPatients from '../../Components/BenifitsOfPatients/BenifitsOfPatients';
 import BenefitsForPharmacies from '../../Components/BenefitsForPharmacies/BenefitsForPharmacies';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link} from 'react-router-dom';
 import SearchBar from '../../Components/SearchBar/SearchBar';
-import { useAuth, getDashboardPathForRole } from '../../Context/AuthContext';
+
 
 export default function LandingPage() {
-  const navigate = useNavigate();
-  const { loading, isAuthenticated, role } = useAuth();
-
-  useEffect(() => {
-    if (loading) return;
-    if (!isAuthenticated || !role) return;
-    const path = getDashboardPathForRole(role);
-    if (path) navigate(path, { replace: true });
-  }, [loading, isAuthenticated, role, navigate]);
-
+  
   return (
     <div className="bg-slate-50 min-h-screen">
      
       <div className="relative overflow-hidden bg-white">
         
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#0891b2_1px,transparent_1px)] [background-size:20px_20px]"></div>
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#0891b2_1px,transparent_1px)] [bg-size:20px_20px]"></div>
         
         <div className="max-w-7xl mx-auto px-6 relative">
           <section className="min-h-[90vh] flex flex-col justify-center items-center text-center">

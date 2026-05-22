@@ -4,7 +4,7 @@ import axios from 'axios';
 import Loader from '../../Components/Loader/Loader';
 import toast from 'react-hot-toast';
 import MapComponent from '../../Components/MapComponent/MapComponent';
-
+import { ChevronDown, ChevronUp } from 'lucide-react';
 function formatPharmacyDistance(pharmacy) {
   const meters = Number(pharmacy.distanceMeters ?? pharmacy.distance);
   if (!Number.isFinite(meters)) return '—';
@@ -34,8 +34,29 @@ export default function MedicineDetails() {
   const [userLocation, setUserLocation] = useState(null);
   const [nearbyLoading, setNearbyLoading] = useState(true);
   const [usingFallbackLocation, setUsingFallbackLocation] = useState(false);
+const [alternatives, setAlternatives] = useState([]);
+const [altLoading, setAltLoading] = useState(false);
+const [showAlternatives, setShowAlternatives] = useState(false);
 
- 
+ async function getAlternatives() {
+  setAltLoading(true);
+  try {
+    const token = localStorage.getItem('accessToken');
+    const response = await axios.get(
+      `https://pais-production.up.railway.app/api/search/${id}/alternatives`,
+      {
+        params: { topK: 5 },
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+    if (response.data.success) setAlternatives(response.data.data);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setAltLoading(false);
+  }
+}
+
   useEffect(() => {
     async function fetchMedicine() {
       try {
@@ -195,7 +216,52 @@ export default function MedicineDetails() {
                 </Link>
               ))}
             </div>
+            <div className="max-w-2xl mx-auto mt-4">
+  <button
+    onClick={() => {
+      if (!showAlternatives && alternatives.length === 0) getAlternatives();
+      setShowAlternatives(!showAlternatives);
+    }}
+    className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow hover:bg-cyan-50 transition"
+  >
+    <span className="font-semibold text-gray-800"> Alternatives</span>
+    {altLoading ? (
+      <span className="w-4 h-4 border-2 border-cyan-700 border-t-transparent rounded-full animate-spin" />
+    ) : showAlternatives ? (
+      <ChevronUp className="w-5 h-5 text-cyan-700" />
+    ) : (
+      <ChevronDown className="w-5 h-5 text-cyan-700" />
+    )}
+  </button>
+
+  {showAlternatives && !altLoading && (
+    <div className="bg-white rounded-2xl shadow mt-2 overflow-hidden">
+      {alternatives.length === 0 ? (
+        <p className="text-center py-6 text-gray-400 text-sm">No alternatives found</p>
+      ) : (
+        alternatives.map((alt) => (
+          <Link
+            to={`/medicine/${alt._id}`}
+            key={alt._id}
+            className="flex items-center justify-between px-5 py-3 border-b last:border-0 hover:bg-cyan-50 transition"
+          >
+            <div>
+              <p className="font-medium text-gray-800">{alt.name}</p>
+              <p className="text-xs text-gray-500">{alt.category}</p>
+            </div>
+            <span className="text-xs font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-2 py-1 rounded-full">
+              {alt.score}% match
+            </span>
+          </Link>
+        ))
+      )}
+    </div>
+  )}
+</div>
           </div>
+
+  
+
 
           <div className="lg:sticky lg:top-6 h-fit">
             <MapComponent userLocation={userLocation} pharmacies={nearbyPharmacies} />

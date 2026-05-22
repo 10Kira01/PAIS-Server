@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { CheckCircle, XCircle, Eye } from 'lucide-react';
 import Loader from '../../Components/Loader/Loader';
+import SearchBar from '../../Components/SearchBar/SearchBar';
 
 export default function AdminPharmaciesPage() {
   const [pharmacies, setPharmacies] = useState([]);
@@ -9,9 +10,17 @@ export default function AdminPharmaciesPage() {
   const [filter, setFilter] = useState('all'); // all, pending, approved, rejected
   const [selectedPharmacy, setSelectedPharmacy] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const token = localStorage.getItem('accessToken');
 
+  const filtered = pharmacies
+  .filter(p => filter === 'all' ? true : p.status === filter)
+  .filter(p =>
+    p.pharmacyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.licenseId?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
   useEffect(() => { fetchPharmacies(); }, []);
 
   async function fetchPharmacies() {
@@ -45,9 +54,9 @@ export default function AdminPharmaciesPage() {
     }
   }
 
-  const filtered = filter === 'all'
-    ? pharmacies
-    : pharmacies.filter(p => p.status === filter);
+  // const filtered = filter === 'all'
+  //   ? pharmacies
+  //   : pharmacies.filter(p => p.status === filter);
 
   return (
     <div className="space-y-6">
@@ -74,7 +83,8 @@ export default function AdminPharmaciesPage() {
         ))}
       </div>
 
-      
+      <SearchBar onSearch={setSearchTerm} />
+
       {isLoading ? (
         <div className="text-center py-12 text-gray-400"><Loader/></div>
       ) : (

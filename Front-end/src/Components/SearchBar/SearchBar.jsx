@@ -15,7 +15,7 @@ export default function SearchBar({ onSearch }) {
         </span>
         <input
           type="text"
-          placeholder="Search for medicine (e.g. Panadol,...)"
+          placeholder="Search......"
           className="w-full outline-none text-slate-700 text-lg placeholder:text-slate-400"
           onChange={(e) => onSearch(e.target.value)}
         />

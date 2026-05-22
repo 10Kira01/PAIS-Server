@@ -51,12 +51,8 @@ const onSubmit = async (data) => {
    
 
   } catch (error) {
-   
-
 const msg =
-      error.response?.data?.errors?.[0]?.msg ||
-      error.response?.data?.message ||
-      "Invalid email or password.";
+     "Invalid email or password.";
     setServerError(msg);
 
   }

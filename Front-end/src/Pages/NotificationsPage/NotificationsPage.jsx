@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Bell, CheckCheck } from 'lucide-react';
+import Loader from '../../Components/Loader/Loader';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
@@ -79,7 +80,7 @@ export default function NotificationsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-gray-400">Loading...</div>
+        <div className="text-center py-12 text-gray-400"><Loader/></div>
       ) : notifications.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
           <Bell size={48} className="mb-4 opacity-30" />
