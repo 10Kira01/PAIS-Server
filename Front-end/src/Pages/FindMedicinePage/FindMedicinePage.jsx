@@ -9,6 +9,7 @@ import axios from 'axios';
 import Loader from '../../Components/Loader/Loader';
 import MapComponent from '../../Components/MapComponent/MapComponent';
 import { useAuth } from '../../Context/AuthContext';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
  
 export default function FindMedicinePage() {
@@ -43,7 +44,7 @@ const [loadingAlt, setLoadingAlt] = useState(null);
     async function getNearbyPharmacies(location) {
     try {
       const response = await axios.get(
-        'https://pais-production.up.railway.app/api/search/nearby',
+        `${API_URL}/api/search/nearby`,
         {
           params: {
             lat: location.lat,
@@ -68,7 +69,7 @@ async function searchDrugs(term) {
   setIsLoading(true);
   setError(null);
   try{
-    const response = await axios.get('https://pais-production.up.railway.app/api/search',{
+    const response = await axios.get(`${API_URL}/api/search`,{
    params:{q:term},
   })
   if(response.data.success){
@@ -90,7 +91,7 @@ async function getAlternatives(drugId) {
   try {
     const token = localStorage.getItem('accessToken');
     const response = await axios.get(
-      `https://pais-production.up.railway.app/api/search/${drugId}/alternatives`,
+      `${API_URL}/api/search/${drugId}/alternatives`,
       {
         params: { topK: 5 },
         headers: { Authorization: `Bearer ${token}` }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Upload } from 'lucide-react';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
 export default function BulkUploadPage() {
   const [file, setFile] = useState(null);
@@ -16,7 +17,7 @@ export default function BulkUploadPage() {
       formData.append('file', file);
 
       const response = await axios.post(
-        'https://pais-production.up.railway.app/api/inventory/bulk-upload',
+        `${API_URL}/api/inventory/bulk-upload`,
         formData,
         {
           headers: {

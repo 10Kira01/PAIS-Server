@@ -268,8 +268,9 @@ import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import AuthFormLogo from '../../Components/AuthFormLogo/AuthFormLogo';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
-const GEOAPIFY_API_KEY = 'd5861ea96e564d92aa4f3eb9af59c183'; // 🔑 Replace with your key
+const GEOAPIFY_API_KEY = import.meta.env?.VITE_GEOAPIFY_API_KEY || process.env.REACT_APP_GEOAPIFY_API_KEY;
 
 const registerSchema = z.object({
   role: z.enum(['client', 'pharmacy']),
@@ -387,7 +388,7 @@ export default function Register() {
       let payload = {};
 
       if (data.role === 'client') {
-        endpoint = 'https://pais-production.up.railway.app/api/client/register';
+        endpoint = `${API_URL}/api/client/register`;
         payload = {
           firstName: data.firstName,
           lastName: data.lastName,
@@ -400,7 +401,7 @@ export default function Register() {
           acceptedTerms: data.acceptedTerms,
         };
       } else {
-        endpoint = 'https://pais-production.up.railway.app/api/pharmacy/register';
+        endpoint = `${API_URL}/api/pharmacy/register`;
         payload = {
           pharmacyName: data.pharmacyName,
           ownerName: data.ownerName,

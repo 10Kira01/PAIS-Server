@@ -37,13 +37,14 @@ export default function MedicineDetails() {
 const [alternatives, setAlternatives] = useState([]);
 const [altLoading, setAltLoading] = useState(false);
 const [showAlternatives, setShowAlternatives] = useState(false);
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
  async function getAlternatives() {
   setAltLoading(true);
   try {
     const token = localStorage.getItem('accessToken');
     const response = await axios.get(
-      `https://pais-production.up.railway.app/api/search/${id}/alternatives`,
+      `${API_URL}/api/search/${id}/alternatives`,
       {
         params: { topK: 5 },
         headers: { Authorization: `Bearer ${token}` }
@@ -61,7 +62,7 @@ const [showAlternatives, setShowAlternatives] = useState(false);
     async function fetchMedicine() {
       try {
         const response = await axios.get(
-          `https://pais-production.up.railway.app/api/search/${id}`
+          `${API_URL}/api/search/${id}`
         );
         if (response.data.success) setMedicine(response.data.data);
       } catch (err) {
@@ -82,7 +83,7 @@ const [showAlternatives, setShowAlternatives] = useState(false);
       setUsingFallbackLocation(!fromGps);
       try {
         const response = await axios.get(
-          `https://pais-production.up.railway.app/api/search/${id}/nearby`,
+          `${API_URL}/api/search/${id}/nearby`,
           { params: { lat: loc.lat, lng: loc.lng } }
         );
         if (cancelled) return;

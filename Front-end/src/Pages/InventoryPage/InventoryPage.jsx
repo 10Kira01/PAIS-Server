@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Search, Edit2, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Loader from '../../Components/Loader/Loader';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useState([]);
@@ -18,7 +19,7 @@ export default function InventoryPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const response = await axios.get(
-        'https://pais-production.up.railway.app/api/inventory',
+        `${API_URL}/api/inventory`,
         {
           params: { search: searchTerm },
           headers: { Authorization: `Bearer ${token}` }

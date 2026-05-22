@@ -3,6 +3,7 @@ import axios from 'axios';
 import { CheckCircle, XCircle, Eye } from 'lucide-react';
 import Loader from '../../Components/Loader/Loader';
 import SearchBar from '../../Components/SearchBar/SearchBar';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
 export default function AdminPharmaciesPage() {
   const [pharmacies, setPharmacies] = useState([]);
@@ -26,7 +27,7 @@ export default function AdminPharmaciesPage() {
   async function fetchPharmacies() {
     try {
       const response = await axios.get(
-        'https://pais-production.up.railway.app/api/admin/pharmacies',
+        `${API_URL}/api/admin/pharmacies`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data.success) setPharmacies(response.data.data);
@@ -41,7 +42,7 @@ export default function AdminPharmaciesPage() {
     setActionLoading(pharmacyId);
     try {
       await axios.patch(
-        `https://pais-production.up.railway.app/api/admin/pharmacies/${pharmacyId}/status`,
+        `${API_URL}/api/admin/pharmacies/${pharmacyId}/status`,
         { status, licenseId, reason },
         { headers: { Authorization: `Bearer ${token}` } }
       );

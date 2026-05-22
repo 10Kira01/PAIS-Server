@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Bell, CheckCheck } from 'lucide-react';
 import Loader from '../../Components/Loader/Loader';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
@@ -13,7 +14,7 @@ export default function NotificationsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const response = await axios.get(
-        'https://pais-production.up.railway.app/api/notifications',
+        `${API_URL}/api/notifications`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data.success) setNotifications(response.data.data);
@@ -28,7 +29,7 @@ export default function NotificationsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       await axios.patch(
-        `https://pais-production.up.railway.app/api/notifications/${id}/read`,
+        `${API_URL}/api/notifications/${id}/read`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

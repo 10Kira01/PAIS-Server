@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import toast from 'react-hot-toast';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
 export default function InventoryFormPage() {
   const { drugId } = useParams();
@@ -30,7 +31,7 @@ export default function InventoryFormPage() {
   async function fetchCurrentItem() {
     try {
       const response = await axios.get(
-        `https://pais-production.up.railway.app/api/inventory/item/${drugId}`,
+        `${API_URL}/api/inventory/item/${drugId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data.success) {
@@ -52,7 +53,7 @@ export default function InventoryFormPage() {
     if (!query.trim()) { setCatalogResults([]); return; }
     try {
       const response = await axios.get(
-        'https://pais-production.up.railway.app/api/inventory/search-catalog',
+        `${API_URL}/api/inventory/search-catalog`,
         {
           params: { query },
           headers: { Authorization: `Bearer ${token}` }
@@ -71,7 +72,7 @@ export default function InventoryFormPage() {
     setIsSubmitting(true);
     try {
       const response = await axios.patch(
-        'https://pais-production.up.railway.app/api/inventory/update',
+        `${API_URL}/api/inventory/update`,
         {
           drugId: selectedDrug._id,
           stockQuantity: Number(form.stockQuantity),

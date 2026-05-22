@@ -14,8 +14,8 @@ import {
   Sparkles,
   ClipboardList,
 } from 'lucide-react';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
-const API = 'https://pais-production.up.railway.app';
 
 function StatCard({ title, value, subtitle, icon: Icon, tone }) {
   const tones = {
@@ -83,8 +83,8 @@ export default function AdminDashboard() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const [phRes, drRes] = await Promise.allSettled([
-        axios.get(`${API}/api/admin/pharmacies`, { headers }),
-        axios.get(`${API}/api/drugs`, { headers }),
+        axios.get(`${API_URL}/api/admin/pharmacies`, { headers }),
+        axios.get(`${API_URL}/api/drugs`, { headers }),
       ]);
 
       if (cancelled) return;

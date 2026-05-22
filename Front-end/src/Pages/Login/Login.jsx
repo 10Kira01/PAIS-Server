@@ -4,6 +4,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios'; 
 import { useAuth, getDashboardPathForRole } from '../../Context/AuthContext';
 import AuthFormLogo from '../../Components/AuthFormLogo/AuthFormLogo';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
 export default function Login() {
   const location =useLocation();
@@ -25,11 +26,11 @@ const onSubmit = async (data) => {
     let endpoint = '';
     
     if (data.role === 'admin') {
-      endpoint = 'https://pais-production.up.railway.app/api/admin/login';
+      endpoint = `${API_URL}/api/admin/login`;
     } else if (data.role === 'pharmacy') {
-      endpoint = 'https://pais-production.up.railway.app/api/pharmacy/login';
+      endpoint = `${API_URL}/api/pharmacy/login`;
     } else {
-      endpoint = 'https://pais-production.up.railway.app/api/client/login';
+      endpoint = `${API_URL}/api/client/login`;
     }
 
     const payload =

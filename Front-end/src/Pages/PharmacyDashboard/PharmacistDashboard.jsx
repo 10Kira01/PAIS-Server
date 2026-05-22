@@ -20,7 +20,7 @@
 //       try {
 //         const token = localStorage.getItem('accessToken');
 //         const response = await axios.get(
-//           'https://pais-production.up.railway.app/api/inventory',
+//           `${API_URL}/api/inventory`,
 //           { headers: { Authorization: `Bearer ${token}` } }
 //         );
 //         if (response.data.success) setInventoryCount(response.data.count);
@@ -112,6 +112,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import Loader from '../../Components/Loader/Loader';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -130,7 +131,7 @@ export default function PharmacistDashboard() {
     try {
       const token = localStorage.getItem('accessToken');
       const response = await axios.get(
-        'https://pais-production.up.railway.app/api/dashboard',
+        `${API_URL}/api/dashboard`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data.success) setDashData(response.data.data);
