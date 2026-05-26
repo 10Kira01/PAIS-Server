@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Bell, CheckCheck } from 'lucide-react';
 import Loader from '../../Components/Loader/Loader';
-const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);

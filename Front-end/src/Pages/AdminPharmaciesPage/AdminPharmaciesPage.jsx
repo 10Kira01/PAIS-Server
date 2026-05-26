@@ -3,7 +3,7 @@ import axios from 'axios';
 import { CheckCircle, XCircle, Eye } from 'lucide-react';
 import Loader from '../../Components/Loader/Loader';
 import SearchBar from '../../Components/SearchBar/SearchBar';
-const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export default function AdminPharmaciesPage() {
   const [pharmacies, setPharmacies] = useState([]);

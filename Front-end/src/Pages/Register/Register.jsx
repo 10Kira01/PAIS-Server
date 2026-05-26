@@ -268,7 +268,7 @@ import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import AuthFormLogo from '../../Components/AuthFormLogo/AuthFormLogo';
-const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const GEOAPIFY_API_KEY = import.meta.env?.VITE_GEOAPIFY_API_KEY || process.env.REACT_APP_GEOAPIFY_API_KEY;
 

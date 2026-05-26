@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Loader from '../../Components/Loader/Loader';
 import SearchBar from '../../Components/SearchBar/SearchBar';
-const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const token = () => localStorage.getItem('accessToken');
 

@@ -37,7 +37,7 @@ export default function MedicineDetails() {
 const [alternatives, setAlternatives] = useState([]);
 const [altLoading, setAltLoading] = useState(false);
 const [showAlternatives, setShowAlternatives] = useState(false);
-const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://pais-production.up.railway.app';
+const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
  async function getAlternatives() {
   setAltLoading(true);
