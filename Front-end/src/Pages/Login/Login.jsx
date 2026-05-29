@@ -7,7 +7,7 @@ import AuthFormLogo from '../../Components/AuthFormLogo/AuthFormLogo';
 const API_URL = import.meta.env?.VITE_API_URL || process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export default function Login() {
-  const location =useLocation();
+  const location = useLocation();
   const from = location.state?.from?.pathname;
   const { login } = useAuth(); 
   const navigate = useNavigate();
@@ -19,45 +19,50 @@ export default function Login() {
     }
   });
 
- 
-const onSubmit = async (data) => {
-  setServerError("");
-  try {
-    let endpoint = '';
-    
-    if (data.role === 'admin') {
-      endpoint = `${API_URL}/api/admin/login`;
-    } else if (data.role === 'pharmacy') {
-      endpoint = `${API_URL}/api/pharmacy/login`;
-    } else {
-      endpoint = `${API_URL}/api/client/login`;
+  const onSubmit = async (data) => {
+    setServerError("");
+    try {
+      let endpoint = '';
+      
+      if (data.role === 'admin') {
+        endpoint = `${API_URL}/api/admin/login`;
+      } else if (data.role === 'pharmacy') {
+        endpoint = `${API_URL}/api/pharmacy/login`;
+      } else {
+        endpoint = `${API_URL}/api/client/login`;
+      }
+
+      const payload =
+        data.role === 'pharmacy'
+          ? { pharmacyEmail: data.email, password: data.password }
+          : { email: data.email, password: data.password };
+
+      const response = await axios.post(endpoint, payload);
+
+      if (response.data.success) {
+        const authData = response.data.data;
+           
+        // 1. Core Auth State Trigger
+        login(authData, data.role);
+
+        // 2. Determine target path based on chosen role
+        const home = getDashboardPathForRole(data.role);
+        
+        // 3. FIXED: Wrap navigation in a timeout to prevent race condition with ProtectedRoute
+        if (home) {
+          setTimeout(() => {
+            const targetPath = from && from !== '/' ? from : home;
+            navigate(targetPath, { replace: true });
+          }, 0);
+        }
+      }
+
+    } catch (error) {
+      const msg = "Invalid email or password.";
+      setServerError(msg);
     }
+  };
 
-    const payload =
-      data.role === 'pharmacy'
-        ? { pharmacyEmail: data.email, password: data.password }
-        : { email: data.email, password: data.password };
-
-    const response = await axios.post(endpoint, payload);
-
-    if (response.data.success) {
-      const authData = response.data.data;
-         
-
-      login(authData, data.role);
-
-      const home = getDashboardPathForRole(data.role);
-      if (home) navigate(from && from !== '/' ? from : home, { replace: true });
-    }
-   
-
-  } catch (error) {
-const msg =
-     "Invalid email or password.";
-    setServerError(msg);
-
-  }
-};
   return (
     <div className="bg-gray-50 min-h-screen py-24 flex items-center px-4">
       <div className="bg-white w-full max-w-md mx-auto p-8 rounded-3xl shadow-xl border border-gray-100">
@@ -72,7 +77,6 @@ const msg =
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-
           <div>
             <label className="block mb-1.5 text-sm font-semibold text-gray-700">Identify yourself as:</label>
             <select 
@@ -85,7 +89,6 @@ const msg =
             </select>
           </div>
 
-      
           <div>
             <label className="block mb-1.5 text-sm font-semibold text-gray-700">Email Address</label>
             <input 

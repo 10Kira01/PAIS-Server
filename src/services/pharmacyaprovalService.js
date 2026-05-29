@@ -3,7 +3,6 @@ const Notification = require("../models/notification");
 const AdminLog = require("../models/adminLog");
 const { sendPharmacyConfirmationEmail } = require("../utils/emailMock");
 
-// HELPER: Internal function to handle administrative logging
 const createAdminLog = async (adminId, targetId, targetName, action, details) => {
     try {
         await AdminLog.create({
@@ -17,18 +16,23 @@ const createAdminLog = async (adminId, targetId, targetName, action, details) =>
     } catch (e) { console.error("Admin Logging failed:", e.message); }
 };
 
-// 1. MISSING: Function to populate Admin Data Frame
 const getAllPharmaciesForAdmin = async () => {
     return await Pharmacy.find().sort({ createdAt: -1 });
 };
 
-// 2. UPDATED: Logic for status changes
+// FIXED: String normalization added during verification check to eliminate license comparison bugs
 const changePharmacyStatus = async (pharmacyId, status, reason, providedLicenseId, adminId) => {
     const pharmacy = await Pharmacy.findById(pharmacyId);
     if (!pharmacy) throw new Error("PHARMACY_NOT_FOUND");
 
     if (status === "approved") {
-        if (!providedLicenseId || providedLicenseId !== pharmacy.licenseId) {
+        // String conversion guarantees undefined variables don't crash comparison matching
+        const incomingLicense = String(providedLicenseId || '').trim();
+        const storedLicense = String(pharmacy.licenseId || '').trim();
+        console.log("👉 DEBUG LOG -> Pharmacy ID:", pharmacyId, "Incoming from Frontend:", `"${incomingLicense}"`, "Stored in MongoDB database:", `"${storedLicense}"`);
+
+        if (!incomingLicense || incomingLicense !== storedLicense) {
+            console.log(`Mismatch Debug -> Received: "${incomingLicense}", Expected: "${storedLicense}"`);
             throw new Error("LICENSE_MISMATCH");
         }
     }
@@ -44,7 +48,6 @@ const changePharmacyStatus = async (pharmacyId, status, reason, providedLicenseI
         { reason, licenseVerified: status === "approved" }
     );
 
-    // MISSING: Actual Notification Logic
     await Notification.create({
         recipientId: pharmacy._id,
         recipientModel: 'Pharmacy',
@@ -54,7 +57,6 @@ const changePharmacyStatus = async (pharmacyId, status, reason, providedLicenseI
           : `Your registration was rejected. Reason: ${reason || "Not provided."}`
     });
 
-    // MISSING: Actual Email Logic
     try {
         await sendPharmacyConfirmationEmail(pharmacy, status, reason);
     } catch (e) { console.error("Email error:", e.message); }
@@ -78,7 +80,6 @@ const sendProblemNotification = async (pharmacyId, message, adminId) => {
     return notification;
 };
 
-// 3. MISSING: Module Exports
 module.exports = { 
     getAllPharmaciesForAdmin, 
     changePharmacyStatus, 

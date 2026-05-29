@@ -13,10 +13,13 @@ const updateStatus = async (req, res) => {
   try {
     const { status, reason, licenseId } = req.body; 
     
-    // MISSING PIECE: Extract the admin's ID for logging
-    const adminId = req.user.id; 
+    // FIXED: Robustly checks both ._id and .id to ensure your logging system receives the token payload cleanly
+    const adminId = req.user ? (req.user._id || req.user.id) : null; 
 
-    // FIXED: Added 'adminId' as the last parameter
+    if (!adminId) {
+       return res.status(401).json({ success: false, message: "Administrative authorization identification missing." });
+    }
+
     const updated = await adminService.changePharmacyStatus(
         req.params.id, 
         status, 
@@ -34,21 +37,23 @@ const updateStatus = async (req, res) => {
 
 /**
  * NOTIFY PHARMACY PROBLEM
- * Triggered when Admin sends a custom message regarding a problem.
  */
 const notifyPharmacyProblem = async (req, res) => {
   try {
     const { id } = req.params;
     const { message } = req.body;
 
-    // MISSING PIECE: Extract the admin's ID for logging
-    const adminId = req.user.id;
+    // FIXED: Normalized fallback security parameters applied here as well
+    const adminId = req.user ? (req.user._id || req.user.id) : null;
+
+    if (!adminId) {
+       return res.status(401).json({ success: false, message: "Administrative authorization identification missing." });
+    }
 
     if (!message) {
       return res.status(400).json({ success: false, message: "Message content is required." });
     }
 
-    // FIXED: Added 'adminId' as the last parameter
     await adminService.sendProblemNotification(id, message, adminId);
 
     res.status(200).json({ 

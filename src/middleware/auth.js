@@ -5,7 +5,8 @@ const { verifyAccessToken } = require("../utils/tokens");
  * Use for: Admin actions, Inventory management, or viewing alternatives.
  */
 const protect = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  // Safe case-sensitivity verification for common production routing headers
+  const authHeader = req.headers.authorization || req.headers.Authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({
@@ -18,7 +19,16 @@ const protect = (req, res, next) => {
 
   try {
     const decoded = verifyAccessToken(token);
-    req.user = decoded; // { id, role, iat, exp }
+    
+    // NORMALIZE USER OBJECT: This guarantees req.user contains both .id and ._id 
+    // to keep both the mongoose logs and routing rules happy!
+    req.user = {
+      ...decoded,
+      id: decoded.id || decoded._id,
+      _id: decoded._id || decoded.id,
+      role: decoded.role
+    };
+
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {
@@ -37,12 +47,10 @@ const protect = (req, res, next) => {
 
 /**
  * 🔓 Optional Protect — Identifies the user if a token exists, but allows guests.
- * Use for: Search and nearby pharmacy routes to track AI Demand.
  */
 const optionalProtect = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  const authHeader = req.headers.authorization || req.headers.Authorization;
 
-  // 1. If no Bearer token is provided, proceed as a guest
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return next(); 
   }
@@ -50,13 +58,17 @@ const optionalProtect = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    // 2. Try to verify the token
     const decoded = verifyAccessToken(token);
-    req.user = decoded; // Attach the user info if valid
+    
+    req.user = {
+      ...decoded,
+      id: decoded.id || decoded._id,
+      _id: decoded._id || decoded.id,
+      role: decoded.role
+    };
+    
     next();
   } catch (err) {
-    // 3. If token is expired or fake, we don't block them. 
-    // We just treat them as a guest (req.user stays undefined).
     next();
   }
 };
@@ -66,15 +78,17 @@ const optionalProtect = (req, res, next) => {
  */
 const restrictTo = (...allowedRoles) => {
   return (req, res, next) => {
-    if (!req.user || !allowedRoles.includes(req.user.role)) {
+    // Easily extract role safely now that req.user is clean and normalized above
+    const userRole = req.user?.role;
+
+    if (!req.user || !allowedRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
-        message: "Forbidden. You do not have permission to access this resource.",
+        message: `Forbidden. You do not have permission to access this resource. Required one of: [${allowedRoles.join(", ")}], but your role is: "${userRole || 'None'}"`,
       });
     }
     next();
   };
 };
 
-// ✅ Don't forget to add optionalProtect to the exports!
 module.exports = { protect, restrictTo, optionalProtect };

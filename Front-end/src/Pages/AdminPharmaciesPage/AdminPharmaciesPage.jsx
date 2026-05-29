@@ -15,13 +15,21 @@ export default function AdminPharmaciesPage() {
 
   const token = localStorage.getItem('accessToken');
 
+  // Normalized status checking to be completely case-insensitive and map 'waiting' -> 'pending'
   const filtered = pharmacies
-  .filter(p => filter === 'all' ? true : p.status === filter)
+  .filter(p => {
+    const currentStatus = p.status?.toLowerCase();
+    if (filter === 'all') return true;
+    if (filter === 'pending') return currentStatus === 'pending' || currentStatus === 'waiting';
+    if (filter === 'approved') return currentStatus === 'approved' || currentStatus === 'accepted';
+    return currentStatus === filter;
+  })
   .filter(p =>
     p.pharmacyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.licenseId?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
   useEffect(() => { fetchPharmacies(); }, []);
 
   async function fetchPharmacies() {
@@ -38,14 +46,22 @@ export default function AdminPharmaciesPage() {
     }
   }
 
-  async function handleStatus(pharmacyId, licenseId, status, reason = '') {
+  // FIXED: Cleaned up payload to match structural keys expected precisely by Node backend endpoints
+  async function handleStatus(pharmacyId, explicitLicenseId, status, reason = '') {
     setActionLoading(pharmacyId);
     try {
+      const payload = { 
+        status: status, 
+        licenseId: explicitLicenseId, 
+        reason: reason 
+      };
+
       await axios.patch(
         `${API_URL}/api/admin/pharmacies/${pharmacyId}/status`,
-        { status, licenseId, reason },
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
       fetchPharmacies(); 
     } catch (err) {
       alert(err.response?.data?.message || 'Action failed');
@@ -55,15 +71,10 @@ export default function AdminPharmaciesPage() {
     }
   }
 
-  // const filtered = filter === 'all'
-  //   ? pharmacies
-  //   : pharmacies.filter(p => p.status === filter);
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Pharmacy Applications</h1>
 
-    
       <div className="flex gap-2">
         {['all', 'pending', 'approved', 'rejected'].map((f) => (
           <button
@@ -77,7 +88,7 @@ export default function AdminPharmaciesPage() {
           >
             {f} {f === 'pending' && (
               <span className="ml-1 bg-red-500 text-white text-xs px-1.5 rounded-full">
-                {pharmacies.filter(p => p.status === 'pending').length}
+                {pharmacies.filter(p => p.status?.toLowerCase() === 'pending' || p.status?.toLowerCase() === 'waiting').length}
               </span>
             )}
           </button>
@@ -101,53 +112,55 @@ export default function AdminPharmaciesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((pharmacy) => (
-                <tr key={pharmacy._id} className="hover:bg-gray-50 transition">
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-gray-900">{pharmacy.pharmacyName}</p>
-                    <p className="text-xs text-gray-500">{pharmacy.applicationId}</p>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{pharmacy.ownerName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{pharmacy.licenseId}</td>
-                  <td className="px-6 py-4">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                      pharmacy.status === 'approved' ? 'bg-green-100 text-green-700' :
-                      pharmacy.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {pharmacy.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {pharmacy.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleStatus(pharmacy._id, pharmacy.licenseId, 'approved')}
-                            disabled={actionLoading === pharmacy._id}
-                            className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-1 rounded-lg hover:bg-green-100 transition"
-                          >
-                            <CheckCircle size={14}/> Approve
-                          </button>
-                          <button
-                            onClick={() => setSelectedPharmacy(pharmacy)}
-                            disabled={actionLoading === pharmacy._id}
-                            className="flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 px-2 py-1 rounded-lg hover:bg-red-100 transition"
-                          >
-                            <XCircle size={14}/> Reject
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((pharmacy) => {
+                const normStatus = pharmacy.status?.toLowerCase();
+                return (
+                  <tr key={pharmacy._id} className="hover:bg-gray-50 transition">
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-gray-900">{pharmacy.pharmacyName}</p>
+                      <p className="text-xs text-gray-500">{pharmacy.applicationId}</p>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{pharmacy.ownerName}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{pharmacy.licenseId}</td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                        ['approved', 'accepted'].includes(normStatus) ? 'bg-green-100 text-green-700' :
+                        ['rejected', 'denied'].includes(normStatus) ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {pharmacy.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {['pending', 'waiting'].includes(normStatus) && (
+                          <>
+                            <button
+                              onClick={() => handleStatus(pharmacy._id, pharmacy.licenseId, 'approved')}
+                              disabled={actionLoading === pharmacy._id}
+                              className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-1 rounded-lg hover:bg-green-100 transition"
+                            >
+                              <CheckCircle size={14}/> Approve
+                            </button>
+                            <button
+                              onClick={() => setSelectedPharmacy(pharmacy)}
+                              disabled={actionLoading === pharmacy._id}
+                              className="flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 px-2 py-1 rounded-lg hover:bg-red-100 transition"
+                            >
+                              <XCircle size={14}/> Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-     
       {selectedPharmacy && (
         <RejectModal
           pharmacy={selectedPharmacy}

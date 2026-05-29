@@ -10,29 +10,31 @@ const token = () => localStorage.getItem('accessToken');
 
 const BASE = `${API_URL}/api/drugs`;
 
+// FIXED: Added price and barcode into empty initialization template mapping
 const emptyForm = {
   name: '', category: '', dosageForm: '',
   composition: '', uses: '', sideEffects: '',
-  contraindications: '', imageUrl: ''
+  contraindications: '', imageUrl: '',
+  price: '', barcode: '' 
 };
 
 export default function AdminDrugsPage() {
   const [drugs, setDrugs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null); // الدواء اللي هيتمسح
+  const [deleteTarget, setDeleteTarget] = useState(null); 
   const [editingDrug, setEditingDrug] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-
   const filteredDrugs = drugs.filter(d =>
-  d.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  d.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  d.composition?.join(', ').toLowerCase().includes(searchTerm.toLowerCase())
-);
+    d.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.composition?.join(', ').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   useEffect(() => { fetchDrugs(); }, []);
 
   async function fetchDrugs() {
@@ -56,6 +58,7 @@ export default function AdminDrugsPage() {
 
   function openEdit(drug) {
     setEditingDrug(drug);
+    // FIXED: Form now receives price and barcode values cleanly from row object data maps
     setForm({
       name: drug.name,
       category: drug.category,
@@ -64,7 +67,9 @@ export default function AdminDrugsPage() {
       uses: drug.uses,
       sideEffects: drug.sideEffects || '',
       contraindications: drug.contraindications || '',
-      imageUrl: drug.imageUrl || ''
+      imageUrl: drug.imageUrl || '',
+      price: drug.price !== undefined ? drug.price : '',
+      barcode: drug.barcode || ''
     });
     setShowModal(true);
   }
@@ -73,10 +78,14 @@ export default function AdminDrugsPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      // FIXED: Packages explicit pricing conversions to numbers along with the barcode payload parameters
       const payload = {
         ...form,
+        price: Number(form.price || 0),
+        barcode: form.barcode ? String(form.barcode).trim() : undefined,
         composition: form.composition.split(',').map(s => s.trim())
       };
+
       if (editingDrug) {
         await axios.put(`${BASE}/${editingDrug._id}`, payload, {
           headers: { Authorization: `Bearer ${token()}` }
@@ -88,6 +97,7 @@ export default function AdminDrugsPage() {
       }
       setShowModal(false);
       fetchDrugs();
+      toast.success(editingDrug ? 'Drug updated successfully' : 'Drug added successfully');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save drug');
     } finally {
@@ -103,6 +113,7 @@ export default function AdminDrugsPage() {
       });
       setDeleteTarget(null);
       fetchDrugs();
+      toast.success('Drug deleted successfully');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete drug');
     } finally {
@@ -132,6 +143,7 @@ export default function AdminDrugsPage() {
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Category</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Form</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Price</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Composition</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
               </tr>
@@ -142,6 +154,7 @@ export default function AdminDrugsPage() {
                   <td className="px-6 py-4 font-medium text-gray-900">{drug.name}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{drug.category}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{drug.dosageForm}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-cyan-900">{drug.price} EGP</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{drug.composition?.join(', ')}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -166,7 +179,7 @@ export default function AdminDrugsPage() {
         </div>
       )}
 
-      {/* Delete Modal */}
+      {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
@@ -204,7 +217,7 @@ export default function AdminDrugsPage() {
         </div>
       )}
 
-     
+      {/* Entry Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
@@ -237,12 +250,14 @@ export default function AdminDrugsPage() {
                   className="p-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 text-sm">
                   <option value="">Select form</option>
                   <option>Tablet</option>
+                  <option>Capsule</option>
                   <option>Syrup</option>
                   <option>Injection</option>
-                  <option>Capsule</option>
-                  <option>Inhaler</option>
-                  <option>Drops</option>
                   <option>Cream</option>
+                  <option>Drops</option>
+                  <option>Inhaler</option>
+                  <option>Patch</option>
+                  <option>Other</option>
                 </select>
               </div>
               <div className="flex flex-col">
@@ -254,6 +269,25 @@ export default function AdminDrugsPage() {
                   placeholder="Paracetamol 500mg, Caffeine 65mg"
                   className="p-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 text-sm" />
               </div>
+
+              {/* FIXED: Added Price field mapping input block */}
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-gray-600 mb-1">Price * (EGP)</label>
+                <input required type="number" step="any" min="0" value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  placeholder="e.g. 50"
+                  className="p-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 text-sm" />
+              </div>
+
+              {/* FIXED: Added Barcode parameter text input field mapping block */}
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-gray-600 mb-1">Barcode ID</label>
+                <input type="text" value={form.barcode}
+                  onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                  placeholder="e.g. 6221000000000"
+                  className="p-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 text-sm" />
+              </div>
+
               <div className="flex flex-col col-span-2">
                 <label className="text-xs font-semibold text-gray-600 mb-1">Uses *</label>
                 <textarea required rows={2} value={form.uses}
